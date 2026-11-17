@@ -87,15 +87,26 @@ def parse_article(art_div, law, lang):
             chunks.append(make_chunk(law, lang, art, "definition", def_no, text))
         return chunks
 
-    # Case 2: numbered paragraphs -> one card per paragraph
-    paragraphs = art_div.find_all("div", class_="norm", recursive=False)
-    if paragraphs:
-        chunks = []
-        for par in paragraphs:
-            par_no = number_of(par.find("span", class_="no-parag").get_text())
-            text = clean(par.find("div", class_="inline-element").get_text(" "))
-            chunks.append(make_chunk(law, lang, art, "paragraph", par_no, text))
-        return chunks
+    # Case 2: numbered paragraphs -> one card per paragraph.
+    # A paragraph can continue AFTER its div.norm: extra subparagraphs appear as
+    # sibling elements (e.g. <p class="norm">), so we attach them to the paragraph
+    # before them instead of dropping them.
+    if art_div.find("div", class_="norm", recursive=False):
+        paragraphs = []                      # list of [par_no, [text pieces]]
+        for el in art_div.find_all(recursive=False):
+            classes = el.get("class", [])
+            if "title-article-norm" in classes or "eli-title" in classes:
+                continue
+            if el.name == "div" and "norm" in classes:
+                par_no = number_of(el.find("span", class_="no-parag").get_text())
+                body = el.find("div", class_="inline-element")
+                paragraphs.append([par_no, [body.get_text(" ")]])
+            elif paragraphs:
+                paragraphs[-1][1].append(el.get_text(" "))
+        return [
+            make_chunk(law, lang, art, "paragraph", par_no, clean(" ".join(pieces)))
+            for par_no, pieces in paragraphs
+        ]
 
     # Case 3: no numbered paragraphs -> whole article is one card
     body = [el for el in art_div.find_all(recursive=False)
