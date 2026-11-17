@@ -40,3 +40,50 @@
 - Verify file content, not file names
 - Laws change → record version + date, mention in README
 - Consolidated texts are documentation only, not legally binding
+## Chunk schema (Phase 1)
+
+### Granularity
+- One chunk = one paragraph (including its points (a), (b), …)
+- Why: precise enough for exact citations like "Art. 6(1)", but keeps points together
+  so each chunk still makes sense on its own. Whole articles can be pages long → blurry
+  matches; single points are too small to understand alone.
+- Articles without numbered paragraphs → whole article = one chunk (paragraph = null)
+- Annexes → one chunk per annex section
+- Will compare against whole-article chunks in Step 1.7
+
+### Recitals
+- Excluded in v1. They explain *why* the law exists but create no rules, and their
+  wording overlaps with articles → could pull retrieval toward non-binding text.
+  May add later for "why" questions.
+
+### Contextual headers
+- `text` = clean original (shown to user, quoted in answers)
+- `embed_text` = "Law, Article N, Title, paragraph X: " + text (used only for search)
+- Why: paragraphs often don't repeat the topic ("Processing shall be lawful only if…"),
+  so the article title in front helps matching.
+
+### Fields
+| Field | Example | Purpose |
+|---|---|---|
+| chunk_id | gdpr_en_art_6_par_1 | unique id |
+| align_id | gdpr_art_6_par_1 | same in EN + DE → links translations |
+| law | gdpr | filtering |
+| lang | en | filtering |
+| version | 04.05.2016 — 000.002 | provenance |
+| unit_type | paragraph / article / annex | chunking comparison |
+| chapter, chapter_title | II, Principles | context |
+| article | "6" (string! e.g. "75b") | citations |
+| article_title | Lawfulness of processing | citations + embed_text |
+| paragraph | "1" or null | citations |
+| citation | GDPR Art. 6(1) | display |
+| text | clean text | answers |
+| embed_text | header + text | retrieval |
+| n_chars | 1234 | statistics |
+
+### Why align_id has no language
+align_id must be identical for the EN and DE version of the same paragraph, so it can
+link the two. If it contained "en"/"de", the two versions would get different ids and
+the link would break.
+
+### Storage
+- JSONL (one chunk per line), one file per law + language: data/processed/gdpr_en.jsonl
