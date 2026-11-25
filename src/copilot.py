@@ -123,6 +123,8 @@ class Copilot:
             "cited_align_ids": [chunks[n - 1]["align_id"] for n in used],
             "retrieved_align_ids": [c["align_id"] for c in chunks],
             "sources_text": sources,
+            "sources": [{"n": i, "citation": c["citation"], "text": c["text"], "law": c["law"]}
+                        for i, c in enumerate(chunks, 1)],
             "latency_s": round(time.time() - start, 2),
             "tokens": response.usage.total_tokens if response.usage else None,
         }

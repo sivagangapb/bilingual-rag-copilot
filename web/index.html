@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EU AI Act & GDPR Copilot</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --ink:#1d1d1f; --muted:#6b6b6b; --line:#e4e4e0; --accent:#2f5bd3; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:760px; margin:0 auto; padding:40px 20px 60px; }
+  h1 { font-size:1.6rem; margin:0 0 6px; }
+  .sub { color:var(--muted); margin:0 0 24px; line-height:1.5; }
+  form { display:flex; gap:8px; }
+  input { flex:1; padding:12px 14px; font-size:1rem; border:1px solid var(--line); border-radius:10px; background:var(--card); }
+  button { padding:12px 18px; font-size:1rem; border:0; border-radius:10px; background:var(--accent); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .examples { margin:12px 0 28px; display:flex; flex-wrap:wrap; gap:8px; }
+  .examples button { background:var(--card); color:var(--ink); border:1px solid var(--line); font-size:.85rem; padding:6px 10px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; }
+  .answer { line-height:1.6; white-space:pre-wrap; }
+  .refused { color:var(--muted); font-style:italic; }
+  .meta { color:var(--muted); font-size:.85rem; margin-top:12px; }
+  details { border-top:1px solid var(--line); padding:10px 0; }
+  summary { cursor:pointer; font-weight:600; }
+  details p { color:#333; font-size:.9rem; line-height:1.5; }
+  .error { color:#b3261e; }
+  footer { color:var(--muted); font-size:.8rem; margin-top:32px; line-height:1.5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>EU AI Act &amp; GDPR Copilot</h1>
+  <p class="sub">Ask in English or German. Answers come only from the official consolidated texts,
+     with article-level citations. If the documents don't cover it, the copilot says so.</p>
+
+  <form id="form">
+    <input id="q" maxlength="500" placeholder="e.g. Can my employer use AI to detect my emotions?" required>
+    <button id="ask" type="submit">Ask</button>
+  </form>
+  <div class="examples">
+    <button type="button">How fast must a data breach be reported?</button>
+    <button type="button">Is AI for screening job applications high-risk?</button>
+    <button type="button">Was sind personenbezogene Daten?</button>
+    <button type="button">Wie hoch sind die Bußgelder nach der KI-Verordnung?</button>
+  </div>
+
+  <div id="out"></div>
+
+  <footer>Legal information, not legal advice. Sources: EUR-Lex consolidated versions
+    (GDPR 2016-05-04, AI Act 2026-07-27), which are for documentation only.
+    Built with multilingual-e5, bge-reranker and an OpenAI model.</footer>
+</main>
+<script>
+const form = document.getElementById("form"), input = document.getElementById("q");
+const btn = document.getElementById("ask"), out = document.getElementById("out");
+
+document.querySelectorAll(".examples button").forEach(b =>
+  b.addEventListener("click", () => { input.value = b.textContent; form.requestSubmit(); }));
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  btn.disabled = true; btn.textContent = "Thinking…";
+  out.innerHTML = '<div class="card meta">Searching the regulations…</div>';
+  try {
+    const res = await fetch("/ask", { method: "POST", headers: {"Content-Type": "application/json"},
+                                     body: JSON.stringify({ question: input.value }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail?.[0]?.msg || data.detail || "Request failed");
+    const sources = data.sources.map(s =>
+      `<details><summary>[${s.n}] ${esc(s.citation)}</summary><p>${esc(s.text)}</p></details>`).join("");
+    out.innerHTML = `<div class="card">
+        <div class="answer ${data.answerable ? "" : "refused"}">${esc(data.answer)}</div>
+        <div class="meta">${data.latency_s}s · cited: ${esc(data.citations.join(", ") || "—")}</div>
+        <div style="margin-top:14px">${sources}</div></div>`;
+  } catch (err) {
+    out.innerHTML = `<div class="card error">${esc(err.message)}</div>`;
+  } finally { btn.disabled = false; btn.textContent = "Ask"; }
+});
+</script>
+</body>
+</html>
