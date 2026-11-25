@@ -70,11 +70,13 @@ class EmbeddingRetriever:
                                              show_progress_bar=True)
             np.save(cache, self.vectors)
 
-    def search(self, query, top_n=50):
+    def search(self, query, top_n=50, law=None):
         q = self.model.encode([("query: " if self.is_e5 else "") + query], normalize_embeddings=True)[0]
         scores = self.vectors @ q                  # cosine similarity (vectors are normalised)
+        if law:                                    # only look at chunks of one law
+            scores = np.where([c["law"] == law for c in self.chunks], scores, -np.inf)
         best = np.argsort(-scores)[:top_n]
-        return [(self.chunks[i], float(scores[i])) for i in best]
+        return [(self.chunks[i], float(scores[i])) for i in best if np.isfinite(scores[i])]
 
 
 # --------------------------------------------------------------------------- Phase 4
