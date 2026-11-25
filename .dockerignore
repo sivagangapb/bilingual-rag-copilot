@@ -1,0 +1,9 @@
+.venv/
+.git/
+.env
+__pycache__/
+data/processed/
+eval/results/
+notes/
+*.npy
+.DS_Store

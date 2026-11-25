@@ -68,7 +68,7 @@ def stats(chunks):
     return f"{len(n):4d} chunks | median {n[len(n) // 2]:4d} | max {n[-1]:4d} chars"
 
 
-if __name__ == "__main__":
+def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for path, law, lang in FILES:
         chunks = parse_file(path, law, lang)
@@ -83,3 +83,7 @@ if __name__ == "__main__":
         print(f"  before split: {stats(chunks)}")
         print(f"  after split:  {stats(final)}")
         print(f"  saved -> {out_path}")
+
+
+if __name__ == "__main__":
+    main()
