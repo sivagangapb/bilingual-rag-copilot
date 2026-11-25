@@ -4,13 +4,15 @@ Usage:
     uv run python src/evaluate.py                    # test split, BM25 + embeddings
     uv run python src/evaluate.py --split dev
     uv run python src/evaluate.py --retrievers bm25  # only BM25 (fast)
+    uv run python src/evaluate.py --split dev --retrievers emb hybrid hybrid+cite hybrid+cite+rerank
 """
 import argparse
 import json
 from collections import defaultdict
 from pathlib import Path
 
-from retrievers import BM25Retriever, EmbeddingRetriever, load_corpus
+from retrievers import (BM25Retriever, CitationLookup, EmbeddingRetriever, HybridRetriever,
+                        Reranker, load_corpus)
 
 K_VALUES = (1, 5, 10)
 
@@ -53,8 +55,11 @@ def print_table(title, groups, columns):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", choices=["dev", "test", "all"], default="test")
-    parser.add_argument("--retrievers", nargs="+", default=["bm25", "emb"], choices=["bm25", "emb"])
+    parser.add_argument("--retrievers", nargs="+", default=["bm25", "emb"],
+                        choices=["bm25", "emb", "hybrid", "hybrid+cite", "hybrid+cite+rerank",
+                                 "emb+cite+rerank", "lang-hybrid+cite+rerank"])
     parser.add_argument("--model", default="intfloat/multilingual-e5-base")
+    parser.add_argument("--reranker", default="BAAI/bge-reranker-v2-m3")
     args = parser.parse_args()
 
     with open("eval/questions.jsonl", encoding="utf-8") as f:
@@ -63,14 +68,27 @@ def main():
                  if q["gold"] and (args.split == "all" or q["split"] == args.split)]
     print(f"{len(questions)} answerable questions ({args.split} split)")
 
+    reranker = Reranker(args.reranker) if any("rerank" in r for r in args.retrievers) else None
+
     per_question = []
     for corpus_lang in ["en", "de"]:
         chunks = load_corpus(corpus_lang)
-        retrievers = []
-        if "bm25" in args.retrievers:
-            retrievers.append(BM25Retriever(chunks, corpus_lang))
-        if "emb" in args.retrievers:
-            retrievers.append(EmbeddingRetriever(chunks, corpus_lang, args.model))
+        bm25 = BM25Retriever(chunks, corpus_lang)
+        emb = EmbeddingRetriever(chunks, corpus_lang, args.model)
+        cite = CitationLookup(chunks)
+        available = {
+            "bm25": bm25,
+            "emb": emb,
+            "hybrid": HybridRetriever(bm25, emb, corpus_lang),
+            "hybrid+cite": HybridRetriever(bm25, emb, corpus_lang, citations=cite),
+            "hybrid+cite+rerank": HybridRetriever(bm25, emb, corpus_lang, citations=cite,
+                                                  reranker=reranker),
+            "emb+cite+rerank": HybridRetriever(bm25, emb, corpus_lang, citations=cite,
+                                               reranker=reranker, bm25_mode="never"),
+            "lang-hybrid+cite+rerank": HybridRetriever(bm25, emb, corpus_lang, citations=cite,
+                                                       reranker=reranker, bm25_mode="same-language"),
+        }
+        retrievers = [available[name] for name in args.retrievers]
 
         for r in retrievers:
             for q in questions:
@@ -98,7 +116,7 @@ def main():
 
     out = Path("eval/results")
     out.mkdir(parents=True, exist_ok=True)
-    out_file = out / f"phase3_{args.split}.jsonl"
+    out_file = out / f"results_{args.split}.jsonl"
     with open(out_file, "w", encoding="utf-8") as f:
         for row in per_question:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")

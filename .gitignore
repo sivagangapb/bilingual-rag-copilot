@@ -222,3 +222,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .DS_Store
+data/processed/*.jsonl
+data/processed/*.npy
+eval/results/
